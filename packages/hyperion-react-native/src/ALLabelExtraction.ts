@@ -153,8 +153,24 @@ function getStringProp(
 ): string | undefined {
   const value = props[name];
   if (value == null) return undefined;
-  if (typeof value === 'string') return value;
   try {
+    switch (typeof value) {
+      case 'string':
+        return value;
+      case 'number':
+        break;
+      case 'object': {
+        const toString = value.toString;
+        if (
+          typeof toString !== 'function' ||
+          toString === Object.prototype.toString
+        )
+          return undefined;
+        break;
+      }
+      default:
+        return undefined;
+    }
     const text = String(value);
     return text.length === 0 ? undefined : text;
   } catch {

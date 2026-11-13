@@ -152,6 +152,7 @@ export function hasInstrumentableEventProp(
   type?: unknown,
   key?: unknown
 ): boolean {
+  let instrumentable = false;
   for (const propName of interceptProps) {
     if (!(propName in props)) continue;
     const handler = props[propName];
@@ -160,11 +161,13 @@ export function hasInstrumentableEventProp(
         ? instrumentedHandlers.get(handler as EventHandler)
         : undefined;
     if (owner == null) {
-      return true;
+      if (type == null) return true;
+      instrumentable = true;
+      continue;
     }
     if (type != null) observeDescendantIdentity(owner, type, key, props);
   }
-  return false;
+  return instrumentable;
 }
 
 function observeDescendantIdentity(
