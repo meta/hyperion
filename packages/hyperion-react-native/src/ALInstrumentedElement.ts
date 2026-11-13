@@ -12,6 +12,7 @@ import {
   extractElementInfo,
   extractElementText,
   extractEventValue,
+  isLoggingSuppressed,
   type RNElementInfo,
   type RNElementText,
   type RNEventValue,
@@ -28,7 +29,10 @@ const SCROLL_DEBOUNCE_MS = 5_000;
 const VALUE_CHANGE_DEBOUNCE_MS = 500;
 const defaultCreateElement = React.createElement;
 type EventHandler = (this: unknown, ...args: unknown[]) => unknown;
-const instrumentedHandlers = new WeakSet<EventHandler>();
+const instrumentedHandlers = new WeakMap<
+  EventHandler,
+  InstrumentationRuntimeState
+>();
 
 export interface ReactNativeUIEventConfig {
   readonly debug: boolean;
@@ -58,6 +62,15 @@ interface InstrumentationRuntimeState {
   lastScrollTimestamp: number;
   valueChangeTimer: ReturnType<typeof setTimeout> | null;
   readonly handlerCache: Map<string, EventHandler>;
+  descendantIdentity?: DescendantIdentity;
+  descendantObserved: boolean;
+}
+
+interface DescendantIdentity {
+  readonly type: unknown;
+  readonly key: unknown;
+  readonly testID?: string;
+  readonly elementText?: RNElementText;
 }
 
 function createInstrumentationSnapshot(
@@ -100,6 +113,7 @@ function createInstrumentationRuntimeState(
     lastScrollTimestamp: 0,
     valueChangeTimer: null,
     handlerCache: new Map(),
+    descendantObserved: false,
   };
 }
 
@@ -110,7 +124,7 @@ function getStateHandler(
   let handler = state.handlerCache.get(propName);
   if (handler == null) {
     handler = createStateHandlerWrapper(state, propName);
-    instrumentedHandlers.add(handler);
+    instrumentedHandlers.set(handler, state);
     state.handlerCache.set(propName, handler);
   }
   return handler;
@@ -134,19 +148,47 @@ export function isInstrumentedHandler(value: unknown): boolean {
 
 export function hasInstrumentableEventProp(
   props: Readonly<Record<string, unknown>>,
-  interceptProps: readonly string[]
+  interceptProps: readonly string[],
+  type?: unknown,
+  key?: unknown
 ): boolean {
   for (const propName of interceptProps) {
     if (!(propName in props)) continue;
     const handler = props[propName];
-    if (
-      typeof handler !== 'function' ||
-      !instrumentedHandlers.has(handler as EventHandler)
-    ) {
+    const owner =
+      typeof handler === 'function'
+        ? instrumentedHandlers.get(handler as EventHandler)
+        : undefined;
+    if (owner == null) {
       return true;
     }
+    if (type != null) observeDescendantIdentity(owner, type, key, props);
   }
   return false;
+}
+
+function observeDescendantIdentity(
+  state: InstrumentationRuntimeState,
+  type: unknown,
+  key: unknown,
+  props: Readonly<Record<string, unknown>>
+): void {
+  if (
+    (state.descendantObserved && key == null) ||
+    !state.controller.active ||
+    isLoggingSuppressed(props)
+  )
+    return;
+  const previous = state.descendantIdentity;
+  if (previous != null && (previous.type !== type || previous.key !== key))
+    return;
+  const info = extractElementInfo(undefined, props);
+  const testID = getExplicitText(info.testID);
+  const elementText = extractElementText(info);
+  if (previous == null && testID == null && elementText == null) return;
+  // Unkeyed siblings share a type: only the first in an owner render may refresh.
+  state.descendantObserved = true;
+  state.descendantIdentity = { type, key, testID, elementText };
 }
 
 export function createALInstrumentedElementType(
@@ -190,6 +232,7 @@ function renderALInstrumentedElement(
   const [runtimeState] = useState(() =>
     createInstrumentationRuntimeState(snapshot, channel, context, controller)
   );
+  runtimeState.descendantObserved = false;
   useInsertionEffect(() => {
     runtimeState.snapshot = snapshot;
     runtimeState.channel = channel;
@@ -379,7 +422,10 @@ function emitUIEvent(
   };
   const elementName =
     getExplicitText(snapshot.elementInfo.testID) ??
+    state.descendantIdentity?.testID ??
     getExplicitText(snapshot.componentName);
+  const elementText =
+    snapshot.elementText ?? state.descendantIdentity?.elementText;
   setIfDefined(event, 'surface', snapshot.surface?.interactivePath);
   setIfDefined(event, 'surfaceData', snapshot.surface ?? undefined);
   setIfDefined(
@@ -388,17 +434,13 @@ function emitUIEvent(
     Object.keys(surfaceMetadata).length === 0 ? undefined : surfaceMetadata
   );
   setIfDefined(event, 'reactComponentStack', snapshot.debugOwnerStack);
-  setIfDefined(event, 'elementText', snapshot.elementText?.text);
-  setIfDefined(event, 'elementTextSource', snapshot.elementText?.source);
-  setIfDefined(
-    event,
-    'elementTextSourceType',
-    snapshot.elementText?.sourceType
-  );
+  setIfDefined(event, 'elementText', elementText?.text);
+  setIfDefined(event, 'elementTextSource', elementText?.source);
+  setIfDefined(event, 'elementTextSourceType', elementText?.sourceType);
   setIfDefined(
     event,
     'elementTextPotentiallySensitive',
-    snapshot.elementText?.potentiallySensitive
+    elementText?.potentiallySensitive
   );
   setIfDefined(event, 'elementName', elementName);
   if (valueInfo != null) {

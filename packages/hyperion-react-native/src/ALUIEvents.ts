@@ -82,10 +82,12 @@ export function reactNativeUIEvents<
     name: 'react-native-ui-events',
     install(channel, context) {
       const instrumentedTypes = new WeakMap<object, unknown>();
-      const elementInstrumenter: ElementInstrumenter = (type, props) => {
+      const elementInstrumenter: ElementInstrumenter = (type, props, key) => {
         if (props == null) return null;
         if (typeof type !== 'function' && typeof type !== 'object') return null;
-        if (!hasInstrumentableEventProp(props, config.interceptProps)) {
+        if (
+          !hasInstrumentableEventProp(props, config.interceptProps, type, key)
+        ) {
           return null;
         }
         if (isLoggingSuppressed(props)) return null;

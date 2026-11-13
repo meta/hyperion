@@ -152,7 +152,14 @@ function getStringProp(
   name: string
 ): string | undefined {
   const value = props[name];
-  return typeof value === 'string' ? value : undefined;
+  if (value == null) return undefined;
+  if (typeof value === 'string') return value;
+  try {
+    const text = String(value);
+    return text.length === 0 ? undefined : text;
+  } catch {
+    return undefined;
+  }
 }
 
 export function extractElementInfo(

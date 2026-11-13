@@ -219,6 +219,48 @@ benchmark('React Native AutoLogging runtime budgets', () => {
       expect(heapPerWrapper).toBeLessThanOrEqual(4_096);
     }
   });
+
+  test('meets forwarded-identity render/commit and mounted heap budgets', () => {
+    function Pressable(props: { onPress(): void }) {
+      return React.createElement('pressable', props);
+    }
+    function CompositeButton(props: { onPress(): void }) {
+      return jsx(Pressable, {
+        onPress: props.onPress,
+        testID: 'inner-benchmark',
+        accessibilityLabel: 'Forwarded benchmark',
+      });
+    }
+    const channel = createAutoLoggingChannel<ALReactNativeEventMap>();
+    AutoLogging.init({ channel, plugins: [reactNativeUIEvents()] });
+    const onPress = () => undefined;
+    const samples: number[] = [];
+    for (let sample = 0; sample < 24; sample++) {
+      const elements = Array.from({ length: 100 }, (_, index) =>
+        jsx(CompositeButton, { onPress }, String(index))
+      );
+      let renderer: TestRenderer.ReactTestRenderer | undefined;
+      const start = performance.now();
+      act(() => {
+        renderer = TestRenderer.create(
+          React.createElement(React.Fragment, null, elements)
+        );
+      });
+      samples.push(((performance.now() - start) * 1_000) / elements.length);
+      if (renderer == null) throw new Error('Expected a mounted renderer.');
+      const mountedRenderer = renderer;
+      act(() => mountedRenderer.unmount());
+    }
+    samples.sort((a, b) => a - b);
+    const forwardedRenderCommit = samples[Math.floor(samples.length * 0.95)];
+    const forwardedHeapPerWrapper =
+      measureMountedHeapPerWrapper(CompositeButton);
+    console.info(
+      JSON.stringify({ forwardedRenderCommit, forwardedHeapPerWrapper })
+    );
+    expect(forwardedRenderCommit).toBeLessThanOrEqual(60);
+    expect(forwardedHeapPerWrapper).toBeLessThanOrEqual(4_096);
+  });
 });
 
 function measureMountedHeapPerWrapper(
