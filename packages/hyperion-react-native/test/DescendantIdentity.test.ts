@@ -206,6 +206,75 @@ describe('forwarded handler identity', () => {
     );
   });
 
+  test.each([
+    ['plain object', {}],
+    ['React element', React.createElement('span', null, 'Not a label')],
+    ['boolean', true],
+    ['symbol', Symbol('Not a label')],
+    ['function', () => 'Not a label'],
+    ['null-prototype object', Object.create(null)],
+  ])('rejects a %s as element text', (_name, label) => {
+    const onPress = jest.fn();
+    render(jsx(CompositeButton, { onPress, label }));
+    renderer.root.findByType('pressable').props.onPress();
+    expect(events).toHaveLength(1);
+    expect(events[0].elementText).toBeUndefined();
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  test('accepts numeric labels without changing sensitivity', () => {
+    render(jsx(CompositeButton, { onPress: () => undefined, label: 42 }));
+    renderer.root.findByType('pressable').props.onPress();
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        elementText: '42',
+        elementTextPotentiallySensitive: true,
+      })
+    );
+  });
+
+  test.each([
+    ['onLongPress', 'onPress'],
+    ['onPress', 'onLongPress'],
+  ])(
+    'mixed handlers report identity with prop order %s, %s',
+    (...interceptProps) => {
+      AutoLogging.dispose();
+      const channel = createAutoLoggingChannel<ALReactNativeEventMap>();
+      channel.addListener('al_ui_event', (event) => events.push(event));
+      AutoLogging.init({
+        channel,
+        plugins: [reactNativeUIEvents({ interceptProps })],
+      });
+      const onPress = jest.fn();
+      const onLongPress = jest.fn();
+      function MixedButton(props: ButtonProps) {
+        return jsx(Pressable, {
+          onPress: props.onPress,
+          onLongPress,
+          testID: 'mixed-inner',
+          accessibilityLabel: 'Mixed button',
+        });
+      }
+      render(jsx(MixedButton, { onPress }));
+      const control = renderer.root.findByType('pressable');
+      control.props.onPress();
+      control.props.onLongPress();
+      expect(
+        events.map((event) => [
+          event.event,
+          event.elementName,
+          event.elementText,
+        ])
+      ).toEqual([
+        ['click', 'mixed-inner', 'Mixed button'],
+        ['long_press', 'mixed-inner', 'Mixed button'],
+      ]);
+      expect(onPress).toHaveBeenCalledTimes(1);
+      expect(onLongPress).toHaveBeenCalledTimes(1);
+    }
+  );
+
   test('clears removed descendant identity on an owner rerender', () => {
     const onPress = () => undefined;
     render(jsx(CompositeButton, { onPress, innerID: 'first', label: 'First' }));

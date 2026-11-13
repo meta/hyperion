@@ -112,8 +112,12 @@ explicit testID or label. Outer identity always wins. The fallback refreshes
 when the owner renders; a stable React key also supports independent descendant
 updates. Unkeyed descendants of the same type sharing one wrapper cannot be
 distinguished during independent updates, so they retain first-wins identity
-until the owner renders again. Stringifiable label values are accepted with the
-same source and sensitivity annotations as string labels. Deep links and React error details are
+until the owner renders again. These are creation-time identity hints, not a
+descendant lifecycle registry: removing the selected descendant or replacing its
+type can leave a stale fallback until the owner remounts. Label conversion accepts
+strings, numbers, and objects with a custom `toString`; plain objects and React
+elements are not converted to labels. Accepted labels retain the same source and
+sensitivity annotations. Deep links and React error details are
 also published raw. Subscribers decide what to sample, filter, redact, retain,
 or transmit. Hyperion does not add a provider, privacy policy, transport, or
 debug event store.
