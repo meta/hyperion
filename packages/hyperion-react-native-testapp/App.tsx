@@ -64,6 +64,63 @@ const FixtureButton = memo(
   )
 );
 
+function ForwardedIdentityButton({
+  label,
+  innerID,
+  onPress,
+  testID,
+}: {
+  label: string;
+  innerID?: string;
+  onPress(): void;
+  testID?: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={styles.control}
+      testID={innerID}
+    >
+      <Text>
+        {label}
+        {testID == null ? '' : ' (outer identity wins)'}
+      </Text>
+    </Pressable>
+  );
+}
+
+function ForwardedIdentityPair({ onPress }: { onPress(): void }) {
+  return (
+    <View>
+      <Pressable
+        accessibilityLabel="First forwarded descendant"
+        onPress={onPress}
+        style={styles.control}
+        testID="forwarded-pair-first"
+      >
+        <Text>First of two descendants sharing one wrapper</Text>
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Second forwarded descendant"
+        onPress={onPress}
+        style={styles.control}
+        testID="forwarded-pair-second"
+      >
+        <Text>Second descendant (event keeps the first identity)</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ComponentFallbackButton({ onPress }: { onPress(): void }) {
+  return (
+    <Pressable onPress={onPress} style={styles.control}>
+      <Text>No explicit identity: component name fallback</Text>
+    </Pressable>
+  );
+}
+
 interface ErrorBoundaryState {
   failed: boolean;
 }
@@ -113,6 +170,7 @@ function FixtureContent(): React.JSX.Element {
   const [throwRender, setThrowRender] = useState(false);
   const [errorResetKey, setErrorResetKey] = useState(0);
   const [automaticPresses, setAutomaticPresses] = useState(0);
+  const [identityRevision, setIdentityRevision] = useState(0);
   const [, setScreenRevision] = useState(0);
   const fixtureRef = useRef<ViewInstance>(null);
   const events = useDebugEvents();
@@ -175,6 +233,32 @@ function FixtureContent(): React.JSX.Element {
             enabled={handlerEnabled}
             onPress={onFixturePress}
             ref={fixtureRef}
+          />
+          <Text style={styles.heading}>Forwarded handler identity</Text>
+          <Text>
+            Inspect elementName and elementText in the event explorer.
+          </Text>
+          <ForwardedIdentityButton
+            innerID={`forwarded-first-${identityRevision}`}
+            label={`Inner button ${identityRevision}`}
+            onPress={onFixturePress}
+          />
+          <ForwardedIdentityButton
+            innerID="forwarded-second"
+            label="Sibling sharing the same callback"
+            onPress={onFixturePress}
+          />
+          <ForwardedIdentityButton
+            innerID="ignored-inner-identity"
+            label="Explicit outer identity"
+            onPress={onFixturePress}
+            testID="forwarded-outer"
+          />
+          <ForwardedIdentityPair onPress={onFixturePress} />
+          <ComponentFallbackButton onPress={onFixturePress} />
+          <Button
+            title="Update inner identity"
+            onPress={() => setIdentityRevision((value) => value + 1)}
           />
         </View>
 

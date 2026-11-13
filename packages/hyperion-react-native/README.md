@@ -106,7 +106,14 @@ switching between observed and unobserved element types. Pass the same
 ## Data and platform policy
 
 UI events publish accepted raw scalar values and explicit labels with source
-and potentially-sensitive provenance. Deep links and React error details are
+and potentially-sensitive provenance. When a composite forwards an instrumented
+handler, missing outer identity falls back to the first descendant with an
+explicit testID or label. Outer identity always wins. The fallback refreshes
+when the owner renders; a stable React key also supports independent descendant
+updates. Unkeyed descendants of the same type sharing one wrapper cannot be
+distinguished during independent updates, so they retain first-wins identity
+until the owner renders again. Stringifiable label values are accepted with the
+same source and sensitivity annotations as string labels. Deep links and React error details are
 also published raw. Subscribers decide what to sample, filter, redact, retain,
 or transmit. Hyperion does not add a provider, privacy policy, transport, or
 debug event store.
