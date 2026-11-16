@@ -97,6 +97,42 @@ describe("test Constructor Interceptor", () => {
     expectResultTobe("ctor", [[20, "Hello"], [21, "Hello-world"], o, o]);
   });
 
+  test("test subclass of intercepted constructor", () => {
+    class B {
+      constructor(public n: number) {
+      }
+    }
+
+    const IBCtor = interceptConstructor(B);
+    const argsObserver = jest.fn();
+    const valueObserver = jest.fn();
+    IBCtor.onBeforeCallObserverAdd(argsObserver);
+    IBCtor.onAfterCallObserverAdd(valueObserver);
+
+    class D extends IBCtor.interceptor {
+      d() {
+        return this.n + 1;
+      }
+    }
+
+    const d = new D(20);
+    expect(d).toBeInstanceOf(D);
+    expect(d).toBeInstanceOf(B);
+    expect(d.n).toBe(20);
+    expect(d.d()).toBe(21);
+    expect(argsObserver).toHaveBeenCalledWith(20);
+    expect(valueObserver).toHaveBeenCalledWith(d);
+
+    const r = Reflect.construct(IBCtor.interceptor, [30], D);
+    expect(r).toBeInstanceOf(D);
+    expect(r.d()).toBe(31);
+
+    // Constructing the interceptor directly is unchanged
+    const b = new IBCtor.interceptor(40);
+    expect(Object.getPrototypeOf(b)).toBe(B.prototype);
+    expect(b.n).toBe(40);
+  });
+
   test("test ctor interceptor", () => {
     const { IBShadow, IAShadow, IA, IB, IBCtor, Ctors } = testSetup();
 

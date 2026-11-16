@@ -11,7 +11,17 @@ function createCtorInterceptor<
   BaseType extends InterceptableObjectType,
   FuncType extends { new(...args: any): BaseType; }
 >(ctorFunc: FuncType): FuncType {
-  const ctorInterceptor = <FuncType><unknown>function () {
+  const ctorInterceptor = <FuncType><unknown>function (this: any) {
+    /**
+     * When a class extends the intercepted constructor (e.g. `class MyPromise extends Promise`
+     * after Promise is intercepted), its `super(...)` call reaches here with `this` created
+     * from the derived class prototype. Construct the object with the derived class as
+     * new.target so that it keeps that prototype, the same as without interception.
+     */
+    const newTarget = this?.constructor;
+    if (newTarget !== ctorFunc && this instanceof ctorFunc && Object.getPrototypeOf(this) !== ctorFunc.prototype) {
+      return Reflect.construct(ctorFunc, arguments, newTarget);
+    }
     // let result = new ctorFunc(...arguments);
     // return result;
     // NOTE: if we see some browsers may not support ...argument, we should then try the following

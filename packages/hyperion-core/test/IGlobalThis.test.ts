@@ -59,4 +59,24 @@ describe('test Global Scope interception', () => {
 
     expect(observer).toBeCalledTimes(finalCount);
   });
+
+  test('test subclass of intercepted Promise', async () => {
+    const valueObserver = jest.fn();
+    IGlobalThis.IPromiseConstructor.onAfterCallObserverAdd(valueObserver);
+
+    class MyPromise<T> extends Promise<T> {
+      tag() {
+        return "MyPromise";
+      }
+    }
+
+    const p = new MyPromise<number>(resolve => resolve(1));
+    expect(p).toBeInstanceOf(MyPromise);
+    expect(p.tag()).toBe("MyPromise");
+    expect(valueObserver).toHaveBeenCalledWith(p);
+    expect(MyPromise.resolve(2)).toBeInstanceOf(MyPromise);
+    expect(await p).toBe(1);
+
+    IGlobalThis.IPromiseConstructor.onAfterCallObserverRemove(valueObserver);
+  });
 });
