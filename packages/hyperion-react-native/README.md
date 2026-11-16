@@ -106,7 +106,9 @@ switching between observed and unobserved element types. Pass the same
 ## Data and platform policy
 
 UI events publish accepted raw scalar values and explicit labels with source
-and potentially-sensitive provenance. When a composite forwards an instrumented
+and potentially-sensitive provenance. A non-empty `testID` takes precedence over
+the lowercase `testid` fallback; both use the existing `testID` identity field and
+developer-identifier provenance. When a composite forwards an instrumented
 handler, missing outer identity falls back to the first descendant with an
 explicit testID or label. Outer identity always wins. The fallback refreshes
 when the owner renders; a stable React key also supports independent descendant

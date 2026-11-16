@@ -192,7 +192,7 @@ export function extractElementInfo(
     componentName,
     componentType: accessibilityRole,
     accessibilityLabel: getStringProp(props, 'accessibilityLabel'),
-    testID: getStringProp(props, 'testID'),
+    testID: getStringProp(props, 'testID') || getStringProp(props, 'testid'),
     ariaLabel: getStringProp(props, 'aria-label'),
     title: getStringProp(props, 'title'),
     accessibilityRole,

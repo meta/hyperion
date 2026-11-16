@@ -22,6 +22,7 @@ interface ButtonProps {
   testID?: string;
   accessibilityLabel?: unknown;
   innerID?: string;
+  innerLowercaseID?: string;
   label?: unknown;
   second?: boolean;
 }
@@ -34,6 +35,7 @@ function CompositeButton(props: ButtonProps) {
   const first = jsx(Pressable, {
     onPress: props.onPress,
     testID: props.innerID,
+    testid: props.innerLowercaseID,
     accessibilityLabel: props.label,
   });
   return props.second
@@ -112,6 +114,37 @@ describe('forwarded handler identity', () => {
     expect(events[0]).toEqual(
       expect.objectContaining({ elementName: 'outer', elementText: 'Outer' })
     );
+  });
+
+  test('uses a lowercase identifier from the forwarded descendant', () => {
+    render(
+      jsx(CompositeButton, {
+        onPress: () => undefined,
+        innerLowercaseID: 'inner-lowercase',
+      })
+    );
+    renderer.root.findByType('pressable').props.onPress();
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        elementName: 'inner-lowercase',
+        elementText: 'inner-lowercase',
+        elementTextSource: 'testID',
+        elementTextSourceType: 'developer_identifier',
+        elementTextPotentiallySensitive: false,
+      })
+    );
+  });
+
+  test('an outer lowercase identifier wins over a descendant identifier', () => {
+    render(
+      jsx(CompositeButton, {
+        onPress: () => undefined,
+        testid: 'outer-lowercase',
+        innerID: 'inner',
+      })
+    );
+    renderer.root.findByType('pressable').props.onPress();
+    expect(events[0].elementName).toBe('outer-lowercase');
   });
 
   test('the first of two same-type descendants wins', () => {
